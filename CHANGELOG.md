@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.8 (2026-10-28)
+
+- Updating the indicator lists on a Mac no longer fails with 29 cryptic certificate errors
+  when Python's certificates are not installed. The update stops at the first one, keeps
+  the previous lists and says how to fix it (double-click Install Certificates.command in
+  the Python folder). The Mac setup steps in the README now include this.
+- If the final menu cannot read any input, the toolkit now says nothing was saved instead
+  of closing silently.
+
 ## 0.1.7 (2026-10-28)
 
 Android

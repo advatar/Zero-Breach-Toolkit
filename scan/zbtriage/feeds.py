@@ -32,6 +32,7 @@ import hashlib
 import io
 import json
 import os
+import ssl
 import stat
 import sys
 import tempfile
@@ -424,6 +425,27 @@ def _fetch(url: str) -> bytes:
     return data
 
 
+def _certificate_problem(exc) -> bool:
+    """True when a download failed because this Python cannot check HTTPS
+    certificates (common with the python.org installer on a Mac until its
+    Install Certificates step has been run)."""
+    reason = getattr(exc, "reason", None)
+    return (isinstance(exc, ssl.SSLCertVerificationError)
+            or isinstance(reason, ssl.SSLCertVerificationError)
+            or "CERTIFICATE_VERIFY_FAILED" in str(exc))
+
+
+def _certificate_help() -> str:
+    if sys.platform == "darwin":
+        return ("this Python cannot check website certificates, so nothing was downloaded "
+                "and the previous indicator lists were kept. To fix it once: open Finder, go to "
+                "Applications, open the Python 3 folder and double-click Install "
+                "Certificates.command, then run the update again.")
+    return ("this Python cannot check website certificates, so nothing was downloaded and "
+            "the previous indicator lists were kept. Install or update the system's root "
+            "certificates (on Linux the ca-certificates package), then run the update again.")
+
+
 def _looks_like_html(data: bytes) -> bool:
     head = data[:512].lstrip().lower()
     return head.startswith((b"<!doctype html", b"<html", b"<head", b"<body"))
@@ -568,6 +590,10 @@ def update(cache: Optional[str] = None, sources: Optional[List[Dict[str, str]]] 
             entry.update(status="updated", indicators=len(parsed))
             emit("[+] {}: {} indicators (sha256 {})".format(src["name"], len(parsed), digest[:16]))
         except Exception as exc:          # one bad source must not stop the rest
+            if _certificate_problem(exc):
+                # Every source would fail the same way: stop with what to do.
+                _write_manifest(cache, manifest)
+                raise IocError(_certificate_help())
             entry.update(status="failed", error=str(exc)[:300],
                          kept_previous=src["id"] in manifest)
             emit("[!] {} failed: {}".format(src["name"], str(exc)[:160]))

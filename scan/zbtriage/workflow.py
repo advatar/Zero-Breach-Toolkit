@@ -287,7 +287,13 @@ def workflow_menu(document, args):
             "    5  Prepare a private evidence bundle\n"
             "    0  Finish")
         choice = ask("  Choose [0]: ")
-        if choice in (None, "", "0", "q", "quit", "exit"):
+        if choice is None:
+            # No input could be read (the terminal sent end-of-input), so the
+            # person never chose anything. Say so rather than closing silently.
+            say("\n  No choice was read, so nothing was saved. Run the check again and "
+                "choose 3 at this menu to save the report.")
+            return not failed
+        if choice in ("", "0", "q", "quit", "exit"):
             return not failed
         try:
             if choice == "1":

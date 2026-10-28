@@ -61,7 +61,9 @@ computer and about 20 minutes. Phones are checked by connecting them to the comp
 **Set up (only the first time)**
 
 1. Go to [python.org/downloads](https://www.python.org/downloads/), click **Download Python**,
-   open the downloaded file and follow the installer.
+   open the downloaded file and follow the installer. When it finishes, open **Finder →
+   Applications → Python 3** and double-click **Install Certificates.command** (without it,
+   updating the indicator lists fails).
 2. On this page, click the green **Code** button, then **Download ZIP**. It appears in your
    **Downloads** folder as **Zero-Breach-Toolkit-main** (if it is still a .zip file,
    double-click it).
@@ -153,6 +155,7 @@ First do the **Set up** steps for [Windows](#windows) or [Mac](#mac) above.
 | `'python' is not recognized` or nothing happens on Windows | Run the Python installer again, choose **Modify**, and make sure **Add Python to environment variables** is ticked. Restart the computer. |
 | `No such file or directory` on a Mac | The folder has a different name. In Terminal type `cd ` (with a space), drag the Zero-Breach-Toolkit-main folder into Terminal, press Enter, then run `python3 -X utf8 scan/zero-breach-toolkit.py`. |
 | `command not found: python3` | Install Python from python.org (step 1), then close and reopen Terminal. |
+| Updating the indicator lists fails on a Mac (`CERTIFICATE_VERIFY_FAILED`) | Open **Finder → Applications → Python 3** and double-click **Install Certificates.command**, then update again. Full Disk Access does not affect updating. |
 | Android: the collector finds no phone | Unlock the phone, use a different cable or USB port, and check **Allow USB debugging** was accepted. Unplug and plug in again. |
 | iPhone: "wrong password" | Use the password chosen when **Encrypt local backup** was first turned on. If it is forgotten, it can be reset on the iPhone (Settings → General → Transfer or Reset iPhone → Reset → Reset All Settings), then make a new backup. |
 | Safari "could not be checked" on a Mac | Give Terminal Full Disk Access (Mac step 3), close Terminal, open it again and run the check again. |
@@ -334,13 +337,13 @@ The single-file `zero-breach-toolkit.py` attached to a release is generated from
 source. Rebuild it from the release's tag and compare:
 
 ```
-git checkout v0.1.7
+git checkout v0.1.8
 python build/bundle.py
 python -c "import hashlib; print(hashlib.sha256(open('dist/zero-breach-toolkit.py','rb').read()).hexdigest())"
 ```
 
-For v0.1.7 the file is 959,996 bytes, SHA-256
-`1fd1c8cf194f24a295005beb96836dd3bdec522134870c8b83f4b834b83c0cfd`. The size and SHA-256
+For v0.1.8 the file is 961,730 bytes, SHA-256
+`aa5cc97edb260f31e508a2b84ba4a1e7dec103cdd7534315ee8fc0755a502fd1`. The size and SHA-256
 published with each release are authoritative. The build is deterministic, so a matching
 rebuild means the published file contains that source and nothing else. Releases are also
 GPG-signed; see [docs/VERIFYING.md](docs/VERIFYING.md).
