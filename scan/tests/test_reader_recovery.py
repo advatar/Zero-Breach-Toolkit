@@ -48,7 +48,11 @@ def test_unreadable_message_preserves_both_neighbours(tmp_path, bundle, bad):
                     "text limit" if bad == "70KiB" else
                     "encoded or unsupported" if bad == "large_encoded" else
                     "database field size limit" if hasattr(sqlite3.Connection, "setlimit") else "text limit")
-        assert expected in gaps[0]
+        # A large encoded body is refused either by SQLite's field-size limit
+        # (when the build enforces it on BLOBs) or by the decoder; both are
+        # correct, and both keep the neighbouring messages.
+        accepted = [expected] + (["database field size limit"] if bad == "large_encoded" else [])
+        assert any(text in gaps[0] for text in accepted), gaps[0]
         assert "artifact missing" not in gaps[0]
 
 

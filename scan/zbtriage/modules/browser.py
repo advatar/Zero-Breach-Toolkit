@@ -571,6 +571,8 @@ def _firefox_roots():
 # Largest browser database we will snapshot, siblings included. Real History /
 # Cookies files are tens of MB; 1 GiB leaves generous headroom.
 _MAX_SNAPSHOT_BYTES = 1024 * 1024 * 1024
+# A real profile holds tens of thousands of icons at most.
+_FAVICON_ROW_LIMIT = 1000000
 
 
 def copy_locked(path):
@@ -638,7 +640,7 @@ def copy_locked(path):
                     header = fh.read(100)
                 with open(base + "-wal", "rb") as fh:
                     wal = fh.read()
-                _prefix, issues = _is_wal_prefix(wal, header)
+                _prefix, issues = _is_wal_prefix(wal, header, max_bytes=_MAX_SNAPSHOT_BYTES)
             except OSError as exc:
                 issues = ["write-ahead log unreadable ({})".format(exc.strerror or type(exc).__name__)]
             incomplete.extend("the write-ahead log is damaged ({})".format(i) for i in issues)
@@ -779,6 +781,21 @@ def _is_ff_profile_dir(path):
         except FileNotFoundError:
             continue
     return False
+
+
+def _browser_same_store_alias(alias, direct):
+    """True when `alias` is a link whose own text points exactly at `direct`
+    (macOS links Safari's sandbox Cookies folder to ~/Library/Cookies). Only the
+    link itself is read, never what it points to; any other link is not an
+    alias and stays refused by the normal checks."""
+    try:
+        if not os.path.islink(alias):
+            return False
+        target = os.readlink(alias)
+    except OSError:
+        return False
+    resolved = os.path.normpath(os.path.join(os.path.dirname(alias), target))
+    return os.path.normcase(resolved) == os.path.normcase(os.path.normpath(direct))
 
 
 def _browser_read_small(path, limit=16 * 1024 * 1024):
@@ -956,8 +973,9 @@ def _locked_note(path, exc):
     browser_name = "the browser"
     lowered = path.lower()
     for marker, label in (("bravesoftware", "Brave"), ("vivaldi", "Vivaldi"),
-                          ("google", "Chrome"), ("microsoft", "Edge"),
-                          ("mozilla", "Firefox"), ("safari", "Safari")):
+                          ("chromium", "Chromium"), ("google", "Chrome"),
+                          ("microsoft", "Edge"), ("mozilla", "Firefox"),
+                          ("firefox", "Firefox"), ("safari", "Safari")):
         if marker in lowered:
             browser_name = label
             break
@@ -968,25 +986,59 @@ def _locked_note(path, exc):
     if "interrupted" in str(exc).lower():
         return ("{} took longer than {} seconds to read, so the rest of it was not "
                 "checked.".format(path, _DB_SECONDS) + cleanup_warning)
-    if sys.platform == "darwin" and isinstance(exc, PermissionError) and "locked" not in str(exc).lower():
+    if sys.platform == "darwin" and _permission_denied(exc) and not _database_locked(exc):
         # macOS does not lock a running browser's files; a refusal here is its
         # privacy protection (Safari's folders, Desktop, Documents...), and
-        # closing the browser would not help.
-        return ("macOS privacy protection blocked {} ({}), so it was not checked. Give "
+        # closing the browser would not help. The refusal also hides whether the
+        # folder exists, so it must not claim the browser is installed.
+        return ("macOS privacy protection blocked {} so it could not be checked{}. Give "
                 "Terminal Full Disk Access (System Settings > Privacy & Security > Full Disk "
-                "Access), then run again.".format(browser_name if browser_name != "the browser"
-                                                   else "this folder", os.path.basename(path))
+                "Access), then run again.".format(
+                    path, "" if browser_name == "the browser"
+                    else " (or whether {} keeps data there)".format(browser_name))
                 + cleanup_warning)
-    if (isinstance(exc, PermissionError) or getattr(exc, "errno", None) == 13
-            or "locked" in str(exc).lower()):
+    if _database_locked(exc):
         return ("{} was running, so one of its databases was locked and could "
                 "not be checked ({}). Close {} and run again to cover it."
                 .format(browser_name, os.path.basename(path), browser_name)
+                + cleanup_warning)
+    if _permission_denied(exc):
+        # Not a lock: the account running the check may not read this file
+        # (another user's profile, restrictive permissions). Closing the
+        # browser would not help, so do not say it was running.
+        return ("permission to read {} was denied, so {} was not checked. Run the check "
+                "as the account that owns this browser profile{}.".format(
+                    path, "it" if browser_name == "the browser" else "this " + browser_name + " data",
+                    " (or as an administrator)" if sys.platform == "win32" else "")
                 + cleanup_warning)
     if isinstance(exc, sqlite3.DatabaseError) and "not a database" in str(exc).lower():
         return ("{} is damaged or is not a database a browser writes, so it was not "
                 "read.".format(path) + cleanup_warning)
     return "could not read {}: {}".format(path, exc) + cleanup_warning
+
+
+# Windows reports a file held open by a running program as a sharing or lock
+# violation; access denied (5) is a permission problem, not a lock.
+_WIN_LOCK_ERRORS = (32, 33)
+
+
+def _database_locked(exc):
+    """A real lock: SQLite's busy/locked, or a Windows sharing violation."""
+    text = str(exc).lower()
+    if "database is locked" in text or "database is busy" in text or "database table is locked" in text:
+        return True
+    winerror = getattr(exc, "winerror", None)
+    if winerror in _WIN_LOCK_ERRORS:
+        return True
+    # Windows without a winerror (rare wrappers) keeps the old reading: a
+    # running browser is by far the most common reason a copy is refused.
+    return (sys.platform == "win32" and isinstance(exc, PermissionError) and winerror is None
+            and "access is denied" not in text)
+
+
+def _permission_denied(exc):
+    return (isinstance(exc, PermissionError) or getattr(exc, "errno", None) in (1, 13)
+            or getattr(exc, "winerror", None) == 5)
 
 
 def _is_schema_drift(exc):
@@ -1587,8 +1639,13 @@ def run(ctx) -> ModuleResult:
             mark_ok(label, kind)
 
         kind = "safari-cookies"
-        for path in (os.path.join(sandbox, "Cookies", "Cookies.binarycookies"),
-                     os.path.join(library, "Cookies", "Cookies.binarycookies")):
+        cookie_paths = [os.path.join(sandbox, "Cookies", "Cookies.binarycookies"),
+                        os.path.join(library, "Cookies", "Cookies.binarycookies")]
+        if _browser_same_store_alias(os.path.join(sandbox, "Cookies"), os.path.join(library, "Cookies")):
+            # macOS ships the sandbox Cookies folder as a link to ~/Library/Cookies,
+            # which is read directly below; the link is never followed.
+            cookie_paths = cookie_paths[1:]
+        for path in cookie_paths:
             try:
                 cookies = _safari_cookie_domains(_browser_read_small(path, 64 * 1024 * 1024))
             except FileNotFoundError:
@@ -1785,38 +1842,51 @@ def run(ctx) -> ModuleResult:
         con, tmp = opened
         try:
             if flavour == "chromium":
-                sql = ("SELECT favicons.url, "
-                       "CASE WHEN favicon_bitmaps.image_data IS NOT NULL "
-                       "AND length(favicon_bitmaps.image_data) > 0 "
-                       "THEN 1 ELSE 0 END "
-                       "FROM favicons "
-                       "LEFT JOIN favicon_bitmaps "
-                       "ON favicons.id = favicon_bitmaps.icon_id")
+                # EXISTS, not a join: duplicate ids in a crafted database would
+                # multiply a join into millions of rows from a tiny file.
+                sql = ("SELECT favicons.url, EXISTS(SELECT 1 FROM favicon_bitmaps "
+                       "WHERE favicon_bitmaps.icon_id = favicons.id "
+                       "AND favicon_bitmaps.image_data IS NOT NULL "
+                       "AND length(favicon_bitmaps.image_data) > 0) "
+                       "FROM favicons")
                 graded = True
             else:
                 sql = "SELECT icon_url FROM moz_icons"
                 graded = False
+            # Streamed and capped: rows are never all held in memory at once.
+            limited = False
             try:
-                rows = con.execute(sql).fetchall()
+                rows = con.execute(sql)
+                try:
+                    for n, row in enumerate(rows):
+                        if n >= _FAVICON_ROW_LIMIT:
+                            limited = True
+                            break
+                        if graded:
+                            url, has_bitmap = row[0], row[1]
+                            ev = EV_CONTACTED if has_bitmap else EV_REFERENCED
+                        else:
+                            url, ev = row[0], EV_CONTACTED
+                        blob = str(url or "").lower()
+                        # Anchor to the HOST, the same way history does. A stored
+                        # bitmap proves the browser fetched that icon - from the
+                        # icon URL's own host. An indicator sitting in the query
+                        # string of an otherwise innocent favicon URL proves
+                        # contact with the innocent host, not with the indicator,
+                        # so it must not be graded as contact.
+                        for ind, grade in _browser_url_evidence(blob, ctx.iocs, ev):
+                            record_hit(path, ind, "favicon: " + blob[:160], grade)
+                finally:
+                    rows.close()
             except sqlite3.Error as exc:
                 mark_fail(label, kind, _locked_note(path, exc))
                 return
+            if limited:
+                mark_fail(label, kind, "{} holds more than {:,} icons; the rest were not "
+                          "checked".format(path, _FAVICON_ROW_LIMIT))
+                return
             mark_ok(label, kind)
             _count_db()
-            for row in rows:
-                if graded:
-                    url, has_bitmap = row[0], row[1]
-                    ev = EV_CONTACTED if has_bitmap else EV_REFERENCED
-                else:
-                    url, ev = row[0], EV_CONTACTED
-                blob = str(url or "").lower()
-                # Anchor to the HOST, the same way history does. A stored bitmap
-                # proves the browser fetched that icon - from the icon URL's own
-                # host. An indicator sitting in the query string of an otherwise
-                # innocent favicon URL proves contact with the innocent host, not
-                # with the indicator, so it must not be graded as contact.
-                for ind, grade in _browser_url_evidence(blob, ctx.iocs, ev):
-                    record_hit(path, ind, "favicon: " + blob[:160], grade)
         finally:
             # Close the handle BEFORE removing, or Windows keeps the copy.
             if not _discard_snapshot(os.path.dirname(tmp), con):
@@ -1999,6 +2069,11 @@ def run(ctx) -> ModuleResult:
                     failures.append("{} could not fit in memory".format(full))
                     continue
                 except OSError as exc:
+                    if fn == "LOCK" and st.st_size == 0:
+                        # LevelDB's empty lock sentinel, held open by a running
+                        # browser. It never holds data, so missing it loses
+                        # nothing; a LOCK file with content is still read.
+                        continue
                     r.skipped += 1  # unreadable file — a gap, not clean
                     r.note("could not read {}: {}".format(full, exc))
                     failures.append("could not read {}: {}".format(full, exc))

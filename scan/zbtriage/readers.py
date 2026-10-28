@@ -388,7 +388,7 @@ def reader_run(ctx, resolver=None):
                           else ModuleResult(spec.name))
                 ctx.cancelled = isinstance(exc, KeyboardInterrupt)
                 result.could_not_run(spec.name, "scan cancelled; remaining checks did not run"
-                                     if ctx.cancelled else "module error: {}".format(exc))
+                                     if ctx.cancelled else "module error: {}".format(str(exc) or type(exc).__name__))
             ctx.completed.append(result)
             ctx.partial = None
             result.duration_s = time.monotonic() - started

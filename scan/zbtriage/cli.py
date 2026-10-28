@@ -118,7 +118,9 @@ def _parse(argv: List[str]) -> argparse.Namespace:
                         "than half (normally refused, keeping the previous copy)")
     p.add_argument("--latest", action="store_true",
                    help="with --update: download each source's newest upstream version "
-                        "instead of the copy pinned and checked for this release")
+                        "instead of the copy pinned and checked for this release; when "
+                        "scanning: use lists downloaded that way (otherwise only the "
+                        "pinned copies are used)")
     p.add_argument("--no-feeds", action="store_true",
                    help="scan with the built-in indicator set only, ignoring "
                         "downloaded sets")
@@ -251,7 +253,7 @@ def _main(argv: List[str] = None) -> int:
             feed_status = {"used": False,
                            "reason": "--iocs given" if args.iocs_explicit else "--no-feeds"}
         else:
-            cached, feed_status = feeds.cached_sets(args.indicator_cache)
+            cached, feed_status = feeds.cached_sets(args.indicator_cache, args.latest)
             feed_status["used"] = True
             sets += cached
         iocs = merge(sets)

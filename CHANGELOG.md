@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.1.9 (2026-10-28)
+
+Browsers
+- "The browser was running" is now said only for a real lock (SQLite busy or locked, or a
+  Windows sharing violation). Other refusals say permission was denied and what to do; on
+  a Mac they point to Full Disk Access without claiming the browser is installed. Firefox
+  and Chromium are named correctly on a Mac.
+- The empty LevelDB `LOCK` file a running Chromium browser holds is no longer reported as
+  a coverage gap. A `LOCK` file with content is still read.
+- Safari: the standard sandbox link to `~/Library/Cookies` is no longer a coverage gap; that
+  store is read directly and the link is still never followed.
+- A desktop browser's write-ahead log is checked against the desktop snapshot limit, not the
+  smaller phone-extraction limit, so a valid log is no longer called damaged.
+
+- Browser icon stores are read row by row with a cap, and without a join, so a small
+  crafted icon database can no longer use up memory and stop the browser check. A store
+  past the cap is reported as not fully checked.
+
+Reports
+- Ad-network matches mention that apps showing ads, such as the new Outlook for Windows,
+  can record them too.
+- A check that stops on an error with no message now names the error instead of leaving
+  the reason blank.
+
+Indicator lists
+- A downloaded list is used only if its content matches the copy pinned for this release,
+  whatever its saved record says. Lists fetched with `--update --latest` are used only
+  when the scan is also run with `--latest`. After moving to a new release, update the
+  lists once (menu option 8, or `--update`).
+
+Releases
+- The release check on GitHub now also downloads the published single file and requires
+  it to match the rebuild, and checks both signatures against the pinned release key.
+
 ## 0.1.8 (2026-10-28)
 
 - Updating the indicator lists on a Mac no longer fails with 29 cryptic certificate errors

@@ -60,13 +60,16 @@ def _is_plist(raw):
     return doc
 
 
-def _is_wal_prefix(raw, database):
+def _is_wal_prefix(raw, database, max_bytes=None):
     """Validate SQLite's published WAL format; return committed prefix + issues.
 
 SQLite does the replay on disposable copies. This validation prevents silent
 discard of a damaged WAL from being reported as complete coverage. Stale frames
 from an earlier salt epoch and valid uncommitted tails are not committed data.
 """
+    # The caller's own size policy: a phone extraction is capped at
+    # _IS_FILE_LIMIT, a desktop browser snapshot at its own larger limit.
+    max_bytes = _IS_FILE_LIMIT if max_bytes is None else max_bytes
     if not raw:
         return b"", []
     if len(raw) < 32 or len(database) < 100:
@@ -98,7 +101,7 @@ from an earlier salt epoch and valid uncommitted tails are not committed data.
         number, size, s1, s2, expected0, expected1 = struct.unpack_from(">6I", raw, position)
         if (s1, s2) != (salt1, salt2):
             break  # old epoch after a WAL reset; SQLite ignores this tail too
-        if not number or number * page > _IS_FILE_LIMIT or size * page > _IS_FILE_LIMIT:
+        if not number or number * page > max_bytes or size * page > max_bytes:
             issues.append("WAL page or database size exceeds the limit")
             break
         c0, c1 = checksum(view[position:position + 8], c0, c1)

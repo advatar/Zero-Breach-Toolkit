@@ -392,7 +392,9 @@ def _bundle_main(argv=None):
                         "than half (normally refused, keeping the previous copy)")
     p.add_argument("--latest", action="store_true",
                    help="with --update: download each source's newest upstream version "
-                        "instead of the copy pinned and checked for this release")
+                        "instead of the copy pinned and checked for this release; when "
+                        "scanning: use lists downloaded that way (otherwise only the "
+                        "pinned copies are used)")
     p.add_argument("--no-feeds", action="store_true",
                    help="scan with the embedded indicator set only")
     p.add_argument("--phone", metavar="FOLDER",
@@ -507,7 +509,7 @@ def _bundle_main(argv=None):
             ioc_set = _load_embedded_iocs()
             ioc_set.feeds = {"used": False, "reason": "--no-feeds"}
         else:
-            cached, feed_status = cached_sets(args.indicator_cache)
+            cached, feed_status = cached_sets(args.indicator_cache, args.latest)
             feed_status["used"] = True
             ioc_set = merge([_load_embedded_iocs()] + cached)
             ioc_set.feeds = feed_status

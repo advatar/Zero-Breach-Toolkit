@@ -920,7 +920,8 @@ TIER_MEANING = {
     "delivery": ("Advertising/tracking infrastructure belonging to this network. "
                  "The evidence grade says what was observed; a DNS record or "
                  "saved reference does not prove an ad reached this device. "
-                 "An ad impression is NOT evidence of infection."),
+                 "An ad impression is NOT evidence of infection. Apps that show "
+                 "ads, such as the new Outlook for Windows, can record these too."),
     "cc": ("A Candiru command-and-control server. This is the most serious "
            "class of indicator - it is the address an active implant talks to."),
     "validator": ("A Candiru validator server. These profiled a device and "

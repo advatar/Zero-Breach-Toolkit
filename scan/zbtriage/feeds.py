@@ -606,10 +606,15 @@ def update(cache: Optional[str] = None, sources: Optional[List[Dict[str, str]]] 
 
 # --- loading the cache for a scan ----------------------------------------------
 
-def cached_sets(cache: Optional[str] = None) -> Tuple[List[IocSet], Dict[str, object]]:
+def cached_sets(cache: Optional[str] = None,
+                latest: bool = False) -> Tuple[List[IocSet], Dict[str, object]]:
     """IocSets from every verified cached source, plus a status block for the
     report. A file whose SHA-256 no longer matches the manifest is REFUSED (it
-    was edited or corrupted after download) and reported, never scanned."""
+    was edited or corrupted after download) and reported, never scanned.
+
+    A file that is not the copy pinned for this release is refused too, unless
+    the scan itself was started with `latest` (--latest). The manifest cannot
+    grant that: whoever could edit the file could also edit the manifest."""
     cache = cache or default_cache_dir()
     sets: List[IocSet] = []
     status = {"cache": cache, "downloaded": False, "loaded": [],
@@ -646,13 +651,14 @@ def cached_sets(cache: Optional[str] = None) -> Tuple[List[IocSet], Dict[str, ob
         if _feed_sha256(data) != meta.get("sha256"):
             status["refused"].append({"id": sid, "reason": "file changed since download"})
             continue
-        # A copy recorded as this release's pinned revision must also match the
-        # hash the release itself carries, which the cache cannot rewrite.
-        pinned_here = meta.get("revision") == FEED_PINS.get(src.get("repo", ""), None)
-        expected = FEED_FILE_SHA256.get(sid) if pinned_here else None
-        if expected and _feed_sha256(data) != expected:
-            status["refused"].append({"id": sid, "reason": "file does not match the copy pinned "
-                                                           "for this release"})
+        # Judged by content against the hash the release itself carries, which
+        # the cache cannot rewrite - never by the manifest's revision field.
+        expected = FEED_FILE_SHA256.get(sid)
+        pinned_here = bool(expected) and _feed_sha256(data) == expected
+        if expected and not pinned_here and not latest:
+            status["refused"].append({"id": sid, "reason": "not the copy pinned for this release; "
+                                                           "update the indicator lists, or scan "
+                                                           "with --latest to use newer lists"})
             continue
         try:
             loaded = _load_source_file(src, path)
