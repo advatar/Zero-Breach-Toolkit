@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.10 (2026-10-29)
+
+Fewer false "could not run" lines, from a real Windows report:
+- An app's own `history.db` that is not a database (FreeTube keeps one, and Windows ignores
+  the case of names) is no longer read as Safari history and reported as a gap. For Safari
+  itself, or a folder you chose to check, an unreadable one is still a gap.
+- A problem finding Amcache is no longer also reported under Prefetch, and when Windows
+  refuses access the line says these records need the check to run as administrator.
+- A missing Microsoft Defender log is explained plainly (usual when another antivirus is in
+  charge) instead of showing PowerShell's error text.
+
 ## 0.1.9 (2026-10-28)
 
 Browsers

@@ -437,8 +437,13 @@ def _tr_check_defender(r, ctx, leads, protection=None):
     settings, err2 = ([], "") if err else _tr_events(
         _TR_DEFENDER_LOG, (5007,), _TR_DEF_SETTINGS_CAP, [2, 3])
     if err or err2:
-        r.could_not_run("defender-history", "Defender log not readable: {}".format(
-            err or err2))
+        reason = err or err2
+        if "there is not an event log" in reason.lower():
+            # Windows removes the log when another antivirus takes over, so
+            # there is nothing to read; say that instead of PowerShell's text.
+            reason = ("Microsoft Defender's log is not on this PC, which is usual when another "
+                      "antivirus is in charge; check that antivirus's own history instead")
+        r.could_not_run("defender-history", "Defender log not readable: {}".format(reason))
         return
     # One lead per threat name: a cracked-software tool detected nine times is
     # one thing to look at, not nine. Records arrive newest first.

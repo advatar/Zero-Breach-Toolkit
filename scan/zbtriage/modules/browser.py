@@ -798,6 +798,17 @@ def _browser_same_store_alias(alias, direct):
     return os.path.normcase(resolved) == os.path.normcase(os.path.normpath(direct))
 
 
+def _sqlite_or_absent(path):
+    """True unless `path` is a readable regular file that is not SQLite."""
+    try:
+        if not os.path.isfile(path) or os.path.islink(path):
+            return True
+        with open(path, "rb") as fh:
+            return fh.read(16) == b"SQLite format 3\0"
+    except OSError:
+        return True  # unreadable: let the normal reader report the gap
+
+
 def _browser_read_small(path, limit=16 * 1024 * 1024):
     """A small evidence file's bytes: links are not followed, and a file that
     changes or grows past the limit while being read is refused."""
@@ -2358,6 +2369,9 @@ def run(ctx) -> ModuleResult:
     # --- Chromium family: Chrome, Edge, Brave, Vivaldi, Chromium ---------------------
     # ... plus desktop apps with a built-in Chromium (found above).
     app_caches_skipped = []
+    # A History.db that is not SQLite stays a gap for Safari itself and for
+    # folders the person chose; elsewhere it is some other app's own file.
+    strict_safari = {label for label, _root in safari_roots} | {"selected"}
     for label, root in chromium_roots + app_roots:
         problem = path_problem(root)
         if problem:
@@ -2391,7 +2405,15 @@ def run(ctx) -> ModuleResult:
                                else folder)
             ctx.emit("[*]   profile: {}".format(current["name"]))
             scan_bookmarks(label, os.path.join(prof, "Bookmarks"))
-            scan_safari_history(label, os.path.join(prof, "History.db"))
+            safari_db = os.path.join(prof, "History.db")
+            if label in strict_safari or _sqlite_or_absent(safari_db):
+                scan_safari_history(label, safari_db)
+            else:
+                # Another app's own "history.db" (FreeTube keeps a text file
+                # under that name, and Windows ignores the case). It is not
+                # Safari's database, so it is not a gap; say so plainly.
+                r.note("{} has its own history.db in a non-database format; it is "
+                       "not Safari history and was not read as such.".format(label))
             scan_history(label, os.path.join(prof, "History"), "chromium")
             scan_cookies(label, os.path.join(prof, "Network", "Cookies"),
                          "chromium")

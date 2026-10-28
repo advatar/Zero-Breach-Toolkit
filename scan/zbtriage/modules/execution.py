@@ -66,6 +66,14 @@ def _wx_files(roots, errors):
             errors.append(path + ": " + str(exc))
 
 
+def _wx_live_reason(text):
+    """Windows lets only administrators read these live records; say so."""
+    lowered = text.lower()
+    if "access is denied" in lowered or "winerror 5]" in lowered or "permission denied" in lowered:
+        return text + " (Windows lets only administrators read this; run the check as administrator to include it)"
+    return text
+
+
 def _wx_matches(r, ctx, text, artifact, location, detail, grade, observed="", identity=False):
     matches = list(ctx.iocs.search(text.lower()))
     if identity:
@@ -123,14 +131,25 @@ def run(ctx):
             r.could_not_run(check, "Windows live records unavailable on this platform; select copied artifacts explicitly")
         return r
     if targets:
-        roots = targets
+        groups = [(tuple(targets), None)]
     else:
         system = os.environ.get("SystemRoot") or r"C:\Windows"
-        roots = (os.path.join(system, "Prefetch"), os.path.join(system, "AppCompat", "Programs", "Amcache.hve"))
+        # Each live location belongs to one check, so a problem finding one of
+        # them is reported against that check only.
+        groups = [((os.path.join(system, "Prefetch"),), "windows-prefetch"),
+                  ((os.path.join(system, "AppCompat", "Programs", "Amcache.hve"),), "windows-amcache")]
     discovery, errors = [], {name: [] for name in _WX_CHECKS}
+    group_errors = []
+
+    def walk():
+        for roots, owner in groups:
+            local = []
+            group_errors.append((owner, local))
+            for item in _wx_files(roots, local):
+                yield item
     found, completed = {name: 0 for name in _WX_CHECKS}, {name: 0 for name in _WX_CHECKS}
     total = 0
-    for check, path in _wx_files(roots, discovery):
+    for check, path in walk():
         found[check] += 1
         limit = (16 if check == "windows-prefetch" else 64) * 1024 * 1024
         try:
@@ -156,6 +175,11 @@ def run(ctx):
         except (OSError, ValueError, UnicodeError, AttributeError) as exc:
             errors[check].append(path + ": " + str(exc))
             r.skipped += 1
+    for owner, local in group_errors:
+        if owner is None:
+            discovery.extend(local)
+        else:
+            errors[owner].extend(_wx_live_reason(text) for text in local)
     for check in _WX_CHECKS:
         if completed[check]:
             r.ran(check)
