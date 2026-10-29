@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import time
 import sys
 import tempfile
 
@@ -263,11 +264,15 @@ def workflow_menu(document, args):
         sys.stderr.flush()
         line = sys.stdin.readline()
         return line.strip() if line else None
-    def destination():
-        raw = ask("  Save to a local path (Enter to go back): ")
+    def destination(default_name):
+        raw = ask("  Save to a local file or folder (Enter to go back): ")
         if not raw:
             return None
         path = os.path.abspath(raw.strip('"'))
+        if os.path.isdir(path):
+            # A folder means "save it in here" under a dated name, never
+            # "replace the folder".
+            path = os.path.join(path, default_name)
         problem = path_problem(path)
         if problem:
             raise ValueError("path refused: " + problem)
@@ -328,15 +333,23 @@ def workflow_menu(document, args):
                         say("    " + (link.get("url", "") if isinstance(link, dict) else str(link)))
                 say("  A check that found no known indicators does not establish that a device is uncompromised.")
             elif choice in ("3", "4"):
-                path = destination()
+                stamp = time.strftime("%Y%m%d-%H%M%S")
+                path = destination("zero-breach-report-{}.txt".format(stamp) if choice == "3"
+                                   else "zero-breach-summary-{}.json".format(stamp))
                 if not path:
                     continue
                 if os.path.lexists(path) and (ask("  Replace the existing file? [y/N]: ") or "").lower() not in ("y", "yes"):
                     continue
-                if choice == "3":
-                    workflow_write_text(render_human(document), path)
-                else:
-                    write_json(share_summary(document), path)
+                try:
+                    if choice == "3":
+                        workflow_write_text(render_human(document), path)
+                    else:
+                        write_json(share_summary(document), path)
+                except PermissionError:
+                    raise OSError("this location cannot be written to (a drive's top folder such as "
+                                  "C:\\ usually needs administrator rights). Choose your Documents "
+                                  "or Desktop folder instead, for example {}".format(
+                                      os.path.join(os.path.expanduser("~"), "Documents")))
                 say("  Saved: " + path)
             elif choice == "5":
                 say("  This creates an UNENCRYPTED private ZIP with the full report. It can expose paths, messages and browsing records. Nothing is uploaded.")
@@ -352,7 +365,7 @@ def workflow_menu(document, args):
                     say("  Original file: {} ({} bytes)".format(entry["source_path"], entry["bytes"]))
                 say("  Total payload: {} bytes. The ZIP is not encrypted.".format(preview["total_bytes"]))
                 say("  Files are copied now; their bytes may differ from the earlier scan. Hashes record subsequent integrity, not original authenticity.")
-                path = destination()
+                path = destination("zero-breach-evidence-{}.zip".format(time.strftime("%Y%m%d-%H%M%S")))
                 if path and (ask("  Create this private bundle with the listed contents? [y/N]: ") or "").lower() in ("y", "yes"):
                     handoff_write(document, path, paths)
                     say("  Saved private bundle: " + path)

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.11 (2026-10-29)
+
+- Saving a report, summary or evidence bundle to a folder now saves inside that folder under
+  a dated name (for example `zero-breach-report-20261029-071600.txt`). Before, typing a
+  folder asked to replace it and then failed with "Access is denied" (WinError 5 / Errno 13).
+- If Windows will not let the toolkit write to the chosen place (such as the top of the C:
+  drive without administrator rights), the message says so and suggests Documents or the
+  Desktop.
+
 ## 0.1.10 (2026-10-29)
 
 Fewer false "could not run" lines, from a real Windows report:
