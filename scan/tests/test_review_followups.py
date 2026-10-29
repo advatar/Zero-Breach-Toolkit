@@ -106,7 +106,7 @@ def _try(fn, *args):
 
 # --- #8 private data on disk ---------------------------------------------------
 
-def test_stale_temp_folders_are_swept_and_fresh_ones_kept(tmp_path):
+def test_stale_temp_folders_are_reported_and_all_folders_kept(tmp_path):
     old = time.time() - 2 * localpaths.STALE_TEMP_AGE
     for name in ("zbt_ios_old", "bscan_old", "adint_ioc_old", "zbt_ioc2_old", "unrelated_old"):
         (tmp_path / name).mkdir()
@@ -115,10 +115,13 @@ def test_stale_temp_folders_are_swept_and_fresh_ones_kept(tmp_path):
     (tmp_path / "zbt_ios_running").mkdir()                 # a scan in progress
     (tmp_path / "bscan_file").write_bytes(b"not a folder")
     os.utime(str(tmp_path / "bscan_file"), (old, old))
-    result = localpaths.sweep_stale_temp(base=str(tmp_path))
-    assert result == {"removed": 4, "failed": []}
+    result = localpaths.find_stale_temp(base=str(tmp_path))
+    assert result["removed"] == 0 and result["failed"] == []
+    assert sorted(os.path.basename(p) for p in result["retained"]) == [
+        "adint_ioc_old", "bscan_old", "zbt_ioc2_old", "zbt_ios_old"]
     assert sorted(p.name for p in tmp_path.iterdir()) == [
-        "bscan_file", "unrelated_old", "zbt_ios_running"]
+        "adint_ioc_old", "bscan_file", "bscan_old", "unrelated_old", "zbt_ioc2_old",
+        "zbt_ios_old", "zbt_ios_running"]
 
 
 def test_report_in_a_synced_folder_is_named(tmp_path, monkeypatch, capsys):
@@ -127,15 +130,17 @@ def test_report_in_a_synced_folder_is_named(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("OneDrive", str(synced))
     assert localpaths.synced_folder(str(synced / "findings" / "scan.txt")) == str(synced)
     assert localpaths.synced_folder(str(tmp_path / "elsewhere" / "scan.txt")) == ""
-    monkeypatch.setattr(workflow, "sweep_stale_temp", lambda: {"removed": 1, "failed": ["/t/zbt_ios_x"]})
+    monkeypatch.setattr(workflow, "find_stale_temp", lambda: {
+        "removed": 0, "failed": [], "retained": ["/t/zbt_ios_x"]})
     iocs = types.SimpleNamespace()
     args = types.SimpleNamespace(report=str(synced / "findings" / "scan.txt"), json=None,
                                  share_json=None, evidence_bundle=None)
     workflow.workflow_before_scan(args, iocs)
     err = capsys.readouterr().err
-    assert "synced to the cloud" in err and "Removed 1 leftover" in err and "/t/zbt_ios_x" in err
+    assert "synced to the cloud" in err and "not deleted" in err and "/t/zbt_ios_x" in err
     assert report._housekeeping_block(iocs.housekeeping) == {
-        "stale_temp_removed": 1, "stale_temp_not_removed": ["/t/zbt_ios_x"]}
+        "stale_temp_removed": 0, "stale_temp_not_removed": [],
+        "stale_temp_retained": ["/t/zbt_ios_x"]}
 
 
 # --- #9 pinned indicator downloads ---------------------------------------------

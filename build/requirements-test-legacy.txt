@@ -1,4 +1,7 @@
 # Test dependencies for the Python 3.8 and 3.9 CI jobs only (pytest 9 needs 3.10+).
+# pytest 8.3.5 is affected by CVE-2025-71176. Run only with a fresh private
+# temporary parent, as in tests.yml and tools/release_check.py. Use the modern
+# test requirements with Python 3.10+ for local development.
 # Pinned by version and hash: pip install --require-hashes -r build/requirements-test-legacy.txt
 colorama==0.4.6 ; sys_platform == "win32" --hash=sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44 --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
 exceptiongroup==1.3.1 ; python_version < "3.11" --hash=sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219 --hash=sha256:a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598

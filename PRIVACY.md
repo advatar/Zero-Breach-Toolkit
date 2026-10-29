@@ -48,6 +48,9 @@ Zero Breach Toolkit runs entirely on your computer.
   by the scanner. They are removed after use; interrupted runs or cleanup failures can leave
   copies in the system temporary directory. The standalone scanner also writes temporary
   embedded indicator files. Requested reports remain until you remove them.
+  Later scans report possible old temporary folders but do not delete them: names and
+  timestamps cannot establish ownership or whether another scan still uses a folder.
+  Review leftovers when no scan is running and remove only copies you no longer need.
 
 Third-party tools the program can optionally point you to (for example MVT or AndroidQF) have their own
 privacy terms; they run only if you choose to run them.

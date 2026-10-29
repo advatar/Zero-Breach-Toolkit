@@ -54,7 +54,22 @@ jobs:
           fi
 
       - name: Unit tests
-        run: python -m pytest scan -q -rs -p no:cacheprovider
+        # The fixed pytest release requires Python 3.10+; keep legacy jobs on 8.3.
+        # Avoid its predictable shared temp root (CVE-2025-71176) by placing
+        # all test scratch space inside a fresh private directory.
+        run: |
+          python - <<'PY'
+          import os
+          import subprocess
+          import sys
+          import tempfile
+          with tempfile.TemporaryDirectory(prefix="zbt-tests-") as scratch:
+              env = dict(os.environ, TMPDIR=scratch, TMP=scratch, TEMP=scratch)
+              result = subprocess.run(
+                  [sys.executable, "-m", "pytest", "scan", "-q", "-rs", "-p", "no:cacheprovider",
+                   "--basetemp", os.path.join(scratch, "pytest")], env=env)
+          sys.exit(result.returncode)
+          PY
 
       - name: Release gate
         run: |

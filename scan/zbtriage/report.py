@@ -1672,7 +1672,8 @@ def _basename(path: str) -> str:
 def _housekeeping_block(status):
     status = status or {}
     return {"stale_temp_removed": int(status.get("removed", 0)),
-            "stale_temp_not_removed": [sanitize_untrusted(p) for p in status.get("failed", [])]}
+            "stale_temp_not_removed": [sanitize_untrusted(p) for p in status.get("failed", [])],
+            "stale_temp_retained": [sanitize_untrusted(p) for p in status.get("retained", [])]}
 
 
 def _feed_block(status):

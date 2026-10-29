@@ -7,7 +7,6 @@ paths here. This is not a sandbox against concurrent filesystem changes.
 
 import os
 import posixpath
-import shutil
 import stat
 import sys
 import time
@@ -136,16 +135,22 @@ STALE_TEMP_PREFIXES = ("zbt_ios_", "bscan_", "adint_ioc_", "zbt_ioc2_")
 STALE_TEMP_AGE = 12 * 3600
 
 
-def sweep_stale_temp(max_age=STALE_TEMP_AGE, now=None, base=None):
-    """Remove this tool's temporary folders left by an earlier scan that did
-    not finish. Only plain folders with the tool's prefixes, owned by this user
-    (on Windows the temporary directory is already per user), and untouched for
-    max_age seconds, so a scan running at the same time is never disturbed.
-    Returns {"removed": count, "failed": [paths that are still there]}."""
-    out = {"removed": 0, "failed": []}
+def find_stale_temp(max_age=STALE_TEMP_AGE, now=None, base=None):
+    """Report possible leftover private copies without deleting anything.
+
+    A matching name and owner do not prove that this tool created a directory.
+    Directory mtime also does not establish inactivity: reading or writing an
+    existing database leaves its parent directory's mtime unchanged. Only the
+    invocation that created a temporary directory may automatically remove it.
+    Keep the legacy counters for report consumers; both remain empty/zero.
+    """
+    out = {"removed": 0, "failed": [], "retained": []}
     try:
         base = base or local_temp_dir()
-        entries = list(os.scandir(base))
+        if path_problem(base):
+            return out
+        with os.scandir(base) as iterator:
+            entries = list(iterator)
     except OSError:
         return out
     now = time.time() if now is None else now
@@ -160,11 +165,7 @@ def sweep_stale_temp(max_age=STALE_TEMP_AGE, now=None, base=None):
                 or (hasattr(os, "getuid") and info.st_uid != os.getuid())
                 or now - info.st_mtime < max_age):
             continue
-        shutil.rmtree(entry.path, ignore_errors=True)
-        if os.path.lexists(entry.path):
-            out["failed"].append(entry.path)
-        else:
-            out["removed"] += 1
+        out["retained"].append(entry.path)
     return out
 
 
