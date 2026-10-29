@@ -1,4 +1,9 @@
-"""Build the Windows program: dist/zero-breach-toolkit.exe.
+"""Build the double-click program for this platform.
+
+Windows: dist/zero-breach-toolkit.exe. macOS and Linux: dist/zero-breach-toolkit
+(a single executable that opens in a terminal). Each platform builds its own;
+the release workflow (.github/workflows/programs.yml) builds all of them on
+GitHub's machines from the tagged source.
 
 Packages the single-file build (dist/zero-breach-toolkit.py, made by
 build/bundle.py) with PyInstaller. Run with the pinned build environment:
@@ -68,12 +73,14 @@ def main():
     ver = version()
     cmd = [sys.executable, "-m", "PyInstaller", "--onefile", "--console", "--noupx",
            "--clean", "--noconfirm", "--name", "zero-breach-toolkit",
-           "--version-file", version_file(ver),
            "--distpath", os.path.join(ROOT, "dist"), "--workpath", WORK,
            "--specpath", WORK, SOURCE]
+    if os.name == "nt":
+        # Windows shows these details under the file's Properties.
+        cmd[-1:-1] = ["--version-file", version_file(ver)]
     print("building version", ver)
     subprocess.run(cmd, check=True)
-    exe = os.path.join(ROOT, "dist", "zero-breach-toolkit.exe")
+    exe = os.path.join(ROOT, "dist", "zero-breach-toolkit" + (".exe" if os.name == "nt" else ""))
     print("wrote {} ({:,} bytes)".format(exe, os.path.getsize(exe)))
 
 
