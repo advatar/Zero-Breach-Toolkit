@@ -85,7 +85,33 @@ computer and about 20 minutes. Phones are checked by connecting them to the comp
 8. To keep a copy of the result, type `3` and press Enter, type `report.txt` and press Enter.
    It is saved in the Zero-Breach-Toolkit-main folder. Type `0` to finish.
 
-On Linux, follow the Mac steps without step 3.
+### Linux
+
+**Set up (only the first time)**
+
+1. Open a terminal (on most desktops, press Ctrl+Alt+T). Python 3 is usually already
+   installed; check with `python3 --version`. If it is missing, install it with your
+   package manager, for example `sudo dnf install python3` (Fedora),
+   `sudo apt install python3` (Ubuntu, Debian, Mint) or `sudo pacman -S python` (Arch).
+2. On this page, click the green **Code** button, then **Download ZIP**. In your
+   **Downloads** folder, right-click the zip and choose **Extract Here**, so that you have a
+   folder named **Zero-Breach-Toolkit-main**.
+
+**Run the check**
+
+3. Close your web browsers and chat apps.
+4. Copy this line, paste it into the terminal and press Enter:
+   ```
+   cd ~/Downloads/Zero-Breach-Toolkit-main && python3 -X utf8 scan/zero-breach-toolkit.py
+   ```
+5. A menu appears. Type the number next to **Update the indicator lists** and press Enter,
+   then type `y` and press Enter. When it finishes, press Enter.
+6. Press Enter again to start **This computer - standard check**. It takes about 15 minutes.
+7. To keep a copy of the result, type `3` and press Enter, type `report.txt` and press Enter.
+   It is saved in the Zero-Breach-Toolkit-main folder. Type `0` to finish.
+
+You do not need `sudo` to run the check. It reads your own account's records; run with
+`sudo`, it may look at the root account's browsers instead of yours.
 
 ### Android phone
 
